@@ -1,8 +1,5 @@
 # Fission-Sandbox
-Fission Sandbox is a lightweight secure execution platform that runs code and shell commands inside ephemeral Firecracker microVMs. It provides a single authenticated API endpoint that allows backend systems and AI agents to safely execute untrusted workloads in fully isolated environments
-# Fission Sandbox
-
-A secure, high-performance execution sandbox built on Firecracker microVMs for running untrusted code in isolated environments.
+Fission Sandbox is a lightweight secure execution platform that runs code and shell commands inside ephemeral Firecracker microVMs. It provides a single authenticated API endpoint that allows backend systems and AI agents to safely execute untrusted workloads in fully isolated environments with strict CPU, memory, and time limits. Each execution runs in a disposable virtual machine with no network access and is destroyed immediately after completion.
 
 ---
 
@@ -22,7 +19,7 @@ This system is designed for AI agents, automation systems, and backend platforms
 
 ---
 
-## 🧠 Why Fission Sandbox Exists
+##  Why Fission Sandbox Exists
 
 Modern AI systems and automation platforms require secure execution environments to run untrusted code safely.
 
@@ -36,7 +33,7 @@ Fission Sandbox solves this by providing:
 
 ---
 
-## 📡 API
+##  API
 
 ### POST `/run`
 
@@ -84,7 +81,6 @@ Go 1.21+
 Bare-metal EC2 instance (recommended)
 # Getting Started
 Clone repo
-git clone https://github.com/your-org/fission-sandbox.git
 cd fission-sandbox
 Build
 make build
