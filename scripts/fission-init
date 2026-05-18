@@ -1,0 +1,42 @@
+#!/bin/bash
+set +e
+
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+
+mkdir -p /work
+mount /dev/vdb /work
+mkdir -p /work/files
+
+if [[ -f /work/files.tar ]]; then
+  tar -xf /work/files.tar -C /work/files
+fi
+
+chmod +x /work/command.sh
+/bin/bash /work/command.sh >/work/stdout.txt 2>/work/stderr.txt
+exit_code=$?
+
+python3 - "${exit_code}" <<'PY'
+import base64
+import json
+import sys
+
+def read_text(path):
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            return handle.read()
+    except FileNotFoundError:
+        return ""
+
+payload = {
+    "stdout": read_text("/work/stdout.txt"),
+    "stderr": read_text("/work/stderr.txt"),
+    "exitCode": int(sys.argv[1]),
+}
+encoded = base64.b64encode(json.dumps(payload).encode("utf-8")).decode("ascii")
+print("FISSION_RESULT " + encoded)
+PY
+
+sync
+reboot -f

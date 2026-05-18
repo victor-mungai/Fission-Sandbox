@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"fission-sandbox/internal/config"
@@ -23,7 +24,7 @@ func TestHandleRunReturnsMockResponse(t *testing.T) {
 	}`)
 
 	req := httptest.NewRequest(http.MethodPost, "/run", bytes.NewReader(body))
-	req.Header.Set("x-sandbox-auth", "dev-secret-token")
+	req.Header.Set("x-sandbox-auth", "test-auth-token")
 	rec := httptest.NewRecorder()
 
 	server.HandleRun(rec, req)
@@ -63,7 +64,7 @@ func TestHandleRunRejectsUnauthorizedRequests(t *testing.T) {
 func TestHandleRunRejectsInvalidPayload(t *testing.T) {
 	server := NewServer(testConfig(), slog.Default())
 	req := httptest.NewRequest(http.MethodPost, "/run", bytes.NewReader([]byte(`{"runId":"test-1"}`)))
-	req.Header.Set("x-sandbox-auth", "dev-secret-token")
+	req.Header.Set("x-sandbox-auth", "test-auth-token")
 	rec := httptest.NewRecorder()
 
 	server.HandleRun(rec, req)
@@ -73,13 +74,31 @@ func TestHandleRunRejectsInvalidPayload(t *testing.T) {
 	}
 }
 
+func TestHandleMetricsReturnsPrometheusText(t *testing.T) {
+	server := NewServer(testConfig(), slog.Default())
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rec := httptest.NewRecorder()
+
+	server.HandleMetrics(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+	if contentType := rec.Header().Get("Content-Type"); !strings.Contains(contentType, "text/plain") {
+		t.Fatalf("unexpected content type: %q", contentType)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "fission_runs_total") {
+		t.Fatalf("metrics body missing runs counter: %q", body)
+	}
+}
+
 func testConfig() config.Config {
 	return config.Config{
 		Server: config.ServerConfig{
 			Port: "8080",
 		},
 		Auth: config.AuthConfig{
-			Token: "dev-secret-token",
+			Token: "test-auth-token",
 		},
 		Limits: config.LimitsConfig{
 			TimeoutMs: 30000,

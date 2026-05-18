@@ -6,7 +6,9 @@ import (
 	"os"
 
 	"fission-sandbox/internal/api"
+	"fission-sandbox/internal/cleanup"
 	"fission-sandbox/internal/config"
+	"fission-sandbox/internal/metrics"
 )
 
 func main() {
@@ -20,9 +22,12 @@ func main() {
 	}
 
 	server := api.NewServer(cfg, logger)
+	cleanup.StartArtifactCleaner(cfg.Firecracker.WorkDir, cfg.Runtime.ArtifactRetentionHours, cfg.Runtime.CleanupIntervalSeconds, logger)
+	metrics.StartMemoryLogger(cfg.Runtime.MemoryLogIntervalSeconds, logger)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/run", server.HandleRun)
+	mux.HandleFunc("/metrics", server.HandleMetrics)
 
 	addr := ":" + cfg.Server.Port
 	logger.Info("fission sandbox api starting", "addr", addr)

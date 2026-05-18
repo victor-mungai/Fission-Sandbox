@@ -1,13 +1,15 @@
 .PHONY: build run test fmt
 
+GOCACHE ?= $(CURDIR)/.gocache
+
 build:
-	go build -o bin/api ./cmd/api
+	GOCACHE=$(GOCACHE) go build -o bin/api ./cmd/api
 
 run:
-	go run ./cmd/api
+	GOCACHE=$(GOCACHE) go run ./cmd/api
 
 test:
-	go test ./...
+	GOCACHE=$(GOCACHE) go test ./...
 
 fmt:
-	go fmt ./...
+	GOCACHE=$(GOCACHE) go fmt ./...

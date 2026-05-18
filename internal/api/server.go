@@ -10,6 +10,7 @@ import (
 	"fission-sandbox/internal/auth"
 	"fission-sandbox/internal/config"
 	"fission-sandbox/internal/executor"
+	"fission-sandbox/internal/metrics"
 	"fission-sandbox/internal/models"
 )
 
@@ -66,6 +67,17 @@ func (s *Server) HandleRun(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(res); err != nil {
 		s.logger.Error("failed to write run response", "error", err, "runId", req.RunID)
 	}
+}
+
+func (s *Server) HandleMetrics(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(metrics.Default.Snapshot().Prometheus()))
 }
 
 func (s *Server) applyDefaults(req *models.RunRequest) {

@@ -13,6 +13,7 @@ type Config struct {
 	Limits      LimitsConfig
 	Executor    ExecutorConfig
 	Firecracker FirecrackerConfig
+	Runtime     RuntimeConfig
 }
 
 type ServerConfig struct {
@@ -34,13 +35,22 @@ type ExecutorConfig struct {
 }
 
 type FirecrackerConfig struct {
-	BinaryPath       string
-	KernelImage      string
-	KernelArgs       string
-	RootfsImage      string
-	WorkDir          string
-	WorkspaceImageMb int
-	DefaultTimeoutMs int
+	BinaryPath             string
+	KernelImage            string
+	KernelArgs             string
+	RootfsImage            string
+	WorkDir                string
+	WorkspaceImageMb       int
+	WorkspaceTemplateImage string
+	DefaultTimeoutMs       int
+}
+
+type RuntimeConfig struct {
+	MaxConcurrentVMs         int
+	WarmPoolSize             int
+	ArtifactRetentionHours   int
+	CleanupIntervalSeconds   int
+	MemoryLogIntervalSeconds int
 }
 
 func Load() Config {
@@ -62,13 +72,21 @@ func Load() Config {
 			Mode: os.Getenv("EXECUTOR_MODE"),
 		},
 		Firecracker: FirecrackerConfig{
-			BinaryPath:       os.Getenv("FIRECRACKER_BIN"),
-			KernelImage:      os.Getenv("FIRECRACKER_KERNEL_IMAGE"),
-			KernelArgs:       os.Getenv("FIRECRACKER_KERNEL_ARGS"),
-			RootfsImage:      os.Getenv("FIRECRACKER_ROOTFS_IMAGE"),
-			WorkDir:          os.Getenv("FIRECRACKER_WORKDIR"),
-			WorkspaceImageMb: getEnvInt("FIRECRACKER_WORKSPACE_IMAGE_MB"),
-			DefaultTimeoutMs: getEnvInt("SANDBOX_DEFAULT_TIMEOUT_MS"),
+			BinaryPath:             os.Getenv("FIRECRACKER_BIN"),
+			KernelImage:            os.Getenv("FIRECRACKER_KERNEL_IMAGE"),
+			KernelArgs:             os.Getenv("FIRECRACKER_KERNEL_ARGS"),
+			RootfsImage:            os.Getenv("FIRECRACKER_ROOTFS_IMAGE"),
+			WorkDir:                os.Getenv("FIRECRACKER_WORKDIR"),
+			WorkspaceImageMb:       getEnvInt("FIRECRACKER_WORKSPACE_IMAGE_MB"),
+			WorkspaceTemplateImage: os.Getenv("FIRECRACKER_WORKSPACE_TEMPLATE_IMAGE"),
+			DefaultTimeoutMs:       getEnvInt("SANDBOX_DEFAULT_TIMEOUT_MS"),
+		},
+		Runtime: RuntimeConfig{
+			MaxConcurrentVMs:         getEnvIntDefault("MAX_CONCURRENT_VMS", 1),
+			WarmPoolSize:             getEnvIntDefault("WARM_POOL_SIZE", 0),
+			ArtifactRetentionHours:   getEnvIntDefault("ARTIFACT_RETENTION_HOURS", 24),
+			CleanupIntervalSeconds:   getEnvIntDefault("CLEANUP_INTERVAL_SECONDS", 300),
+			MemoryLogIntervalSeconds: getEnvIntDefault("MEMORY_LOG_INTERVAL_SECONDS", 60),
 		},
 	}
 }
@@ -113,6 +131,24 @@ func (c Config) Validate() error {
 			missing = append(missing, "FIRECRACKER_WORKSPACE_IMAGE_MB")
 		}
 	}
+	if c.Runtime.MaxConcurrentVMs <= 0 {
+		missing = append(missing, "MAX_CONCURRENT_VMS must be greater than 0")
+	}
+	if c.Runtime.WarmPoolSize < 0 {
+		missing = append(missing, "WARM_POOL_SIZE must be greater than or equal to 0")
+	}
+	if c.Runtime.WarmPoolSize > c.Runtime.MaxConcurrentVMs {
+		missing = append(missing, "WARM_POOL_SIZE must be less than or equal to MAX_CONCURRENT_VMS")
+	}
+	if c.Runtime.ArtifactRetentionHours < 0 {
+		missing = append(missing, "ARTIFACT_RETENTION_HOURS must be greater than or equal to 0")
+	}
+	if c.Runtime.CleanupIntervalSeconds <= 0 {
+		missing = append(missing, "CLEANUP_INTERVAL_SECONDS must be greater than 0")
+	}
+	if c.Runtime.MemoryLogIntervalSeconds <= 0 {
+		missing = append(missing, "MEMORY_LOG_INTERVAL_SECONDS must be greater than 0")
+	}
 
 	if len(missing) > 0 {
 		return fmt.Errorf("missing or invalid environment values: %s", strings.Join(missing, ", "))
@@ -129,6 +165,19 @@ func getEnvInt(key string) int {
 	parsed, err := strconv.Atoi(value)
 	if err != nil {
 		return 0
+	}
+	return parsed
+}
+
+func getEnvIntDefault(key string, fallback int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
 	}
 	return parsed
 }

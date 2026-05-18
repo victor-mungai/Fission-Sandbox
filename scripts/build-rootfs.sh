@@ -7,6 +7,7 @@ DEBIAN_RELEASE="${DEBIAN_RELEASE:-bookworm}"
 MIRROR="${DEBIAN_MIRROR:-http://deb.debian.org/debian}"
 WORKDIR="$(mktemp -d)"
 MOUNTDIR="${WORKDIR}/mnt"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 cleanup() {
   if mountpoint -q "${MOUNTDIR}"; then
@@ -35,49 +36,6 @@ mount -o loop "${ROOTFS_PATH}" "${MOUNTDIR}"
 
 debootstrap --variant=minbase --include=bash,python3,coreutils,tar,mount,util-linux "${DEBIAN_RELEASE}" "${MOUNTDIR}" "${MIRROR}"
 
-cat > "${MOUNTDIR}/sbin/fission-init" <<'INIT'
-#!/bin/bash
-set +e
-
-mount -t proc proc /proc
-mount -t sysfs sysfs /sys
-mount -t devtmpfs devtmpfs /dev
-
-mkdir -p /work /work/files
-mount /dev/vdb /work
-
-if [[ -f /work/files.tar ]]; then
-  tar -xf /work/files.tar -C /work/files
-fi
-
-chmod +x /work/command.sh
-/bin/bash /work/command.sh >/work/stdout.txt 2>/work/stderr.txt
-exit_code=$?
-
-python3 - "${exit_code}" <<'PY'
-import base64
-import json
-import sys
-
-def read_text(path):
-    try:
-        with open(path, "r", encoding="utf-8", errors="replace") as handle:
-            return handle.read()
-    except FileNotFoundError:
-        return ""
-
-payload = {
-    "stdout": read_text("/work/stdout.txt"),
-    "stderr": read_text("/work/stderr.txt"),
-    "exitCode": int(sys.argv[1]),
-}
-encoded = base64.b64encode(json.dumps(payload).encode("utf-8")).decode("ascii")
-print("FISSION_RESULT " + encoded)
-PY
-
-sync
-reboot -f
-INIT
-
-chmod 0755 "${MOUNTDIR}/sbin/fission-init"
+mkdir -p "${MOUNTDIR}/work"
+install -m 0755 "${SCRIPT_DIR}/fission-init" "${MOUNTDIR}/sbin/fission-init"
 echo "rootfs created at ${ROOTFS_PATH}"
